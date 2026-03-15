@@ -1,0 +1,72 @@
+{
+"name": "takkuns-game-portal",
+"version": "1.2.1",
+"description": "Takkun's Game Portal for Windows",
+"author": "Takkunlego0916",
+"main": "main.js",
+"private": true,
+
+"scripts": {
+"start": "electron .",
+"dev": "electron .",
+"build": "electron-builder",
+"dist": "electron-builder --win"
+},
+
+"devDependencies": {
+"electron": "^30.0.0",
+"electron-builder": "^26.8.1"
+},
+
+"build": {
+"appId": "io.github.takkunlego0916.takkunsgameportal",
+"productName": "Takkun's Game Portal",
+
+"asar": true,
+
+"directories": {
+  "buildResources": "build",
+  "output": "dist"
+},
+
+"files": [
+  "!**/*.md",
+  "!**/*.map",
+  "!**/test",
+  "!**/.git",
+
+  "index.html",
+  "script.js",
+  "styles.css",
+  "main.js",
+
+  "2048/**/*",
+  "Othello/**/*",
+  "blockkuzusi/**/*",
+  "endless-run/**/*",
+  "minesweeper/**/*",
+  "sudoku/**/*",
+  "tetris/**/*"
+],
+
+"win": {
+  "target": [
+    {
+      "target": "nsis",
+      "arch": ["x64"]
+    }
+  ],
+  "icon": "build/icon.ico"
+},
+
+"nsis": {
+  "oneClick": false,
+  "allowToChangeInstallationDirectory": true,
+  "allowElevation": true,
+  "createDesktopShortcut": true,
+  "createStartMenuShortcut": true,
+  "shortcutName": "Takkun's Game Portal"
+}
+
+}
+}
