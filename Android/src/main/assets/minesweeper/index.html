@@ -3,47 +3,27 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Minesweeper | Takkun's Game Portal</title>
+  <title>エンドレスラン | Takkun's Game Portal</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main class="wrap" role="main" aria-label="Minesweeper">
-    <header class="panel header" role="banner">
-      <h1 class="title">Minesweeper</h1>
-      <div class="controls">
-        <label class="control">
-          <span class="label">難易度</span>
-          <select id="difficulty" aria-label="難易度">
-            <option value="easy">Easy 9×9 10</option>
-            <option value="medium" selected>Medium 16×16 40</option>
-            <option value="hard">Hard 30×16 99</option>
-          </select>
-        </label>
-        <button id="newBtn" class="btn">New Game</button>
-      </div>
-    </header>
+  <div id="ui">
+    <div id="score">Score: 0</div>
+    <div id="highscore">High: 0</div>
+    <button id="start">Start</button>
+  </div>
 
-    <section class="panel status" aria-live="polite">
-      <div class="badge">残り旗: <span id="flags">0</span></div>
-      <div class="badge">時間: <span id="timer">0</span>s</div>
-      <div id="message" class="message" role="status"></div>
-      <div class="best-times">
-        <strong>Best</strong>
-        <div id="bestEasy">Easy: —</div>
-        <div id="bestMedium">Medium: —</div>
-        <div id="bestHard">Hard: —</div>
-      </div>
-    </section>
+  <canvas id="game" width="800" height="400"></canvas>
 
-    <section class="panel board-wrap" aria-label="ゲーム盤">
-      <div id="board" class="board" role="grid" tabindex="0"></div>
-    </section>
+  <div id="overlay" class="hidden">
+    <div id="gameover-box">
+      <h1>Game Over</h1>
+      <p id="final-score">Score: 0</p>
+      <p id="final-high">High Score: 0</p>
+      <button id="restart">Restart</button>
+    </div>
+  </div>
 
-    <footer class="panel footer">
-      <p>左クリックで開く 右クリックで旗 モバイルは長押しで旗 キーボード Enter 開く F 旗</p>
-    </footer>
-  </main>
-
-  <script type="module" src="script.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
