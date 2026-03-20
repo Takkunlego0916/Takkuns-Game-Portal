@@ -1,142 +1,235 @@
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+const boardEl = document.getElementById('board');
+const difficultyEl = document.getElementById('difficulty');
+const newBtn = document.getElementById('newBtn');
+const flagsEl = document.getElementById('flags');
+const timerEl = document.getElementById('timer');
+const messageEl = document.getElementById('message');
+const bestEasyEl = document.getElementById('bestEasy');
+const bestMediumEl = document.getElementById('bestMedium');
+const bestHardEl = document.getElementById('bestHard');
 
-const scoreEl = document.getElementById('score');
-const highEl = document.getElementById('highscore');
-const startBtn = document.getElementById('start');
-const overlay = document.getElementById('overlay');
-const finalScoreEl = document.getElementById('final-score');
-const finalHighEl = document.getElementById('final-high');
-const restartBtn = document.getElementById('restart');
+let cols = 16, rows = 16, minesCount = 40;
+let grid = [], started = false, timer = null, seconds = 0, flagsLeft = 0, cellsLeft = 0, gameOver = false;
 
-let running = false;
-let score = 0;
-let highScore = Number(localStorage.getItem('endless_high') || 0);
+const BEST_KEY = 'minesweeper_best_times';
 
-highEl.textContent = 'High: ' + highScore;
-
-const player = {
-  x: 60,
-  y: 0,    
-  w: 40,
-  h: 40,
-  vy: 0,
-  groundY: 300 
-};
-
-let obstacles = [];
-const gravity = 0.9;
-let baseSpeed = 4;
-let spawnTimer = 0;
-
-startBtn.addEventListener('click', () => startGame());
-restartBtn.addEventListener('click', () => startGame());
-canvas.addEventListener('click', () => jump());
-window.addEventListener('keydown', (e) => { if (e.code === 'Space') jump(); });
-
-function startGame() {
-  running = true;
-  score = 0;
-  obstacles = [];
-  player.y = player.groundY;
-  player.vy = 0;
-  baseSpeed = 4;
-  overlay.classList.add('hidden');
-  startBtn.style.display = 'none';
+function loadBestTimes(){
+  const raw = localStorage.getItem(BEST_KEY);
+  return raw ? JSON.parse(raw) : {easy:null,medium:null,hard:null};
+}
+function saveBestTimes(obj){ localStorage.setItem(BEST_KEY, JSON.stringify(obj)); }
+function updateBestUI(){
+  const b = loadBestTimes();
+  bestEasyEl.textContent = `Easy: ${b.easy ?? '—'}`;
+  bestMediumEl.textContent = `Medium: ${b.medium ?? '—'}`;
+  bestHardEl.textContent = `Hard: ${b.hard ?? '—'}`;
 }
 
-function jump() {
-  if (!running) return;
-  if (player.y >= player.groundY) {
-    player.vy = -16;
+function setDifficulty(v){
+  if(v==='easy'){cols=9;rows=9;minesCount=10}
+  else if(v==='medium'){cols=16;rows=16;minesCount=40}
+  else {cols=30;rows=16;minesCount=99}
+}
+
+function createBoard(){
+  boardEl.innerHTML = '';
+  boardEl.style.gridTemplateColumns = `repeat(${cols}, auto)`;
+  grid = [];
+  started = false; clearInterval(timer); timer = null; seconds = 0; timerEl.textContent = '0'; messageEl.textContent = '';
+  flagsLeft = minesCount; flagsEl.textContent = flagsLeft;
+  gameOver = false;
+
+  for(let r=0;r<rows;r++){
+    const row = [];
+    for(let c=0;c<cols;c++){
+      const cell = {r,c,mine:false,open:false,flag:false,adj:0,el:null};
+      const el = document.createElement('div');
+      el.className = 'cell';
+      el.dataset.r = r; el.dataset.c = c;
+      el.tabIndex = 0;
+      el.addEventListener('click', onCellClick);
+      el.addEventListener('contextmenu', onCellRightClick);
+      el.addEventListener('keydown', onCellKeyDown);
+      let pressTimer = null;
+      el.addEventListener('touchstart', e => {
+        pressTimer = setTimeout(()=>{ toggleFlag(cell); }, 600);
+      }, {passive:true});
+      el.addEventListener('touchend', e => { if(pressTimer) clearTimeout(pressTimer); }, {passive:true});
+      cell.el = el;
+      boardEl.appendChild(el);
+      row.push(cell);
+    }
+    grid.push(row);
+  }
+  cellsLeft = cols*rows - minesCount;
+}
+
+function placeMines(firstR, firstC){
+  const forbidden = new Set();
+  for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
+    const nr = firstR+dr, nc = firstC+dc;
+    if(nr>=0 && nr<rows && nc>=0 && nc<cols) forbidden.add(nr+','+nc);
+  }
+  let placed = 0;
+  while(placed < minesCount){
+    const r = Math.floor(Math.random()*rows);
+    const c = Math.floor(Math.random()*cols);
+    const key = r+','+c;
+    if(forbidden.has(key)) continue;
+    const cell = grid[r][c];
+    if(cell.mine) continue;
+    cell.mine = true; placed++;
+  }
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+    let count = 0;
+    for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
+      if(dr===0 && dc===0) continue;
+      const nr=r+dr, nc=c+dc;
+      if(nr>=0 && nr<rows && nc>=0 && nc<cols && grid[nr][nc].mine) count++;
+    }
+    grid[r][c].adj = count;
   }
 }
 
-function spawnObstacle() {
-  const h = 20 + Math.random() * 40;
-  const w = 20 + Math.random() * 30;
-  const y = player.groundY + player.h - h; 
-  obstacles.push({ x: canvas.width + 10, y: y, w: w, h: h });
+function startTimer(){
+  if(timer) return;
+  timer = setInterval(()=>{ seconds++; timerEl.textContent = seconds; }, 1000);
 }
 
-function isColliding(a, b) {
-  return !(a.x + a.w < b.x || a.x > b.x + b.w || a.y + a.h < b.y || a.y > b.y + b.h);
+function reveal(cell){
+  if(cell.open || cell.flag || gameOver) return;
+  cell.open = true;
+  cell.el.classList.add('open');
+  if(cell.mine){
+    cell.el.classList.add('mine');
+    cell.el.textContent = '💣';
+    lose();
+    return;
+  }
+  cellsLeft--;
+  if(cell.adj>0){
+    cell.el.textContent = cell.adj;
+    cell.el.style.color = colorForNumber(cell.adj);
+  } else {
+    for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
+      const nr = cell.r+dr, nc = cell.c+dc;
+      if(nr>=0 && nr<rows && nc>=0 && nc<cols) reveal(grid[nr][nc]);
+    }
+  }
+  checkWin();
 }
 
-function update(dt) {
-  if (!running) return;
+function colorForNumber(n){
+  const map = {1:'#0000ff',2:'#007700',3:'#ff0000',4:'#000088',5:'#880000',6:'#008888',7:'#000',8:'#888'};
+  return map[n] || '#000';
+}
 
-  player.vy += gravity;
-  player.y += player.vy;
-  if (player.y > player.groundY) {
-    player.y = player.groundY;
-    player.vy = 0;
+function onCellClick(e){
+  const r = +this.dataset.r, c = +this.dataset.c;
+  const cell = grid[r][c];
+  if(gameOver) return;
+  if(!started){
+    placeMines(r,c);
+    started = true;
+    startTimer();
   }
+  reveal(cell);
+}
 
-  for (let o of obstacles) {
-    o.x -= baseSpeed;
+function onCellRightClick(e){
+  e.preventDefault();
+  const r = +this.dataset.r, c = +this.dataset.c;
+  const cell = grid[r][c];
+  toggleFlag(cell);
+}
+
+function onCellKeyDown(e){
+  const r = +this.dataset.r, c = +this.dataset.c;
+  const cell = grid[r][c];
+  if(e.key === 'Enter') reveal(cell);
+  if(e.key.toLowerCase() === 'f') toggleFlag(cell);
+  const key = e.key;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(key)){
+    e.preventDefault();
+    let nr = cell.r, nc = cell.c;
+    if(key === 'ArrowUp') nr = Math.max(0, nr-1);
+    if(key === 'ArrowDown') nr = Math.min(rows-1, nr+1);
+    if(key === 'ArrowLeft') nc = Math.max(0, nc-1);
+    if(key === 'ArrowRight') nc = Math.min(cols-1, nc+1);
+    const next = grid[nr][nc];
+    if(next && next.el) next.el.focus();
   }
-  
-  obstacles = obstacles.filter(o => o.x + o.w > -50);
+}
 
-  spawnTimer += dt;
-  if (spawnTimer > 800 - Math.min(500, score * 2)) { 
-    spawnObstacle();
-    spawnTimer = 0;
+function toggleFlag(cell){
+  if(cell.open || gameOver) return;
+  cell.flag = !cell.flag;
+  if(cell.flag){
+    cell.el.classList.add('flag');
+    cell.el.textContent = '🚩';
+    flagsLeft--;
+  } else {
+    cell.el.classList.remove('flag');
+    cell.el.textContent = '';
+    flagsLeft++;
   }
+  flagsEl.textContent = flagsLeft;
+}
 
-  baseSpeed = 4 + Math.floor(score / 100);
-
-  score += dt * 0.02;
-  scoreEl.textContent = 'Score: ' + Math.floor(score);
-
-  const playerRect = { x: player.x, y: player.y - player.h, w: player.w, h: player.h };
-  for (let o of obstacles) {
-    const obsRect = { x: o.x, y: o.y, w: o.w, h: o.h };
-    if (isColliding(playerRect, obsRect)) {
-      endGame();
-      break;
+function lose(){
+  gameOver = true;
+  clearInterval(timer); timer = null;
+  messageEl.textContent = 'You Lose';
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+    const cell = grid[r][c];
+    if(cell.mine && !cell.open){
+      cell.el.classList.add('open','mine');
+      cell.el.textContent = '💣';
     }
   }
 }
 
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = '#8b5a2b';
-  ctx.fillRect(0, player.groundY + player.h, canvas.width, canvas.height - (player.groundY + player.h));
-
-  ctx.fillStyle = '#ff6347';
-  ctx.fillRect(player.x, player.y - player.h, player.w, player.h);
-
-  ctx.fillStyle = '#222';
-  for (let o of obstacles) {
-    ctx.fillRect(o.x, o.y, o.w, o.h);
+function checkWin(){
+  if(cellsLeft === 0 && !gameOver){
+    gameOver = true;
+    clearInterval(timer); timer = null;
+    messageEl.textContent = 'You Win';
+    markMines();
+    saveBestIfNeeded();
   }
 }
 
-function endGame() {
-  running = false;
-  const final = Math.floor(score);
-  if (final > highScore) {
-    highScore = final;
-    localStorage.setItem('endless_high', highScore);
+function markMines(){
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+    const cell = grid[r][c];
+    if(cell.mine){
+      cell.el.classList.add('flag');
+      cell.el.textContent = '🚩';
+    }
   }
-  finalScoreEl.textContent = 'Score: ' + final;
-  finalHighEl.textContent = 'High Score: ' + highScore;
-  highEl.textContent = 'High: ' + highScore;
-  overlay.classList.remove('hidden');
-  startBtn.style.display = 'inline-block';
 }
 
-let last = performance.now();
-function loop(now) {
-  const dt = now - last;
-  last = now;
-  update(dt);
-  draw();
-  requestAnimationFrame(loop);
+function saveBestIfNeeded(){
+  const diff = difficultyEl.value;
+  const b = loadBestTimes();
+  if(b[diff] === null || seconds < b[diff]){
+    b[diff] = seconds;
+    saveBestTimes(b);
+    updateBestUI();
+    messageEl.textContent = `New Best ${seconds}s`;
+  }
 }
-requestAnimationFrame(loop);
 
-player.y = player.groundY;
+newBtn.addEventListener('click', ()=> {
+  setDifficulty(difficultyEl.value);
+  createBoard();
+});
+
+difficultyEl.addEventListener('change', ()=> {
+  setDifficulty(difficultyEl.value);
+  createBoard();
+});
+
+setDifficulty(difficultyEl.value);
+createBoard();
+updateBestUI();
