@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
       for(let c=0;c<9;c++){
         const cell = document.createElement('div');
         cell.className = 'cell';
+
         if(c%3===2) cell.classList.add('thick-right');
         if(r%3===2) cell.classList.add('thick-bottom');
         if(c%3===0) cell.classList.add('thick-left');
@@ -46,16 +47,23 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   function onInput(e){
     const el = e.target;
-    const v = el.value.replace(/[^1-9]/g,'');
-    el.value = v;
     const r = +el.dataset.r;
     const c = +el.dataset.c;
-    if(v === '') puzzle[r][c] = 0;
-    else puzzle[r][c] = Number(v);
+
+    if(fixed[r][c]) return;
+
+    const v = el.value.replace(/[^1-9]/g,'');
+    el.value = v;
+
+    puzzle[r][c] = v === '' ? 0 : Number(v);
+
     if(v !== ''){
-      const next = getCell(r,c+1) || getCell(r+1,0);
+      let next = getCell(r, c+1);
+      if(!next && r < 8) next = getCell(r+1, 0);
       if(next) next.focus();
     }
+
+    checkComplete();
   }
 
   function getCell(r,c){
@@ -67,14 +75,18 @@ document.addEventListener('DOMContentLoaded', ()=>{
   function render(puz, sol=null){
     puzzle = Sudoku.cloneGrid(puz);
     solution = sol ? Sudoku.cloneGrid(sol) : null;
+
     fixed = Array.from({length:9},()=>Array(9).fill(false));
+
     for(let r=0;r<9;r++){
       for(let c=0;c<9;c++){
         const input = getCell(r,c);
         const val = puzzle[r][c];
+
         input.value = val === 0 ? '' : String(val);
         input.disabled = false;
         input.parentElement.classList.remove('fixed','error');
+
         if(val !== 0){
           input.disabled = true;
           input.parentElement.classList.add('fixed');
@@ -105,21 +117,32 @@ document.addEventListener('DOMContentLoaded', ()=>{
   }
 
   function checkPuzzle(){
-    for(let r=0;r<9;r++) for(let c=0;c<9;c++) getCell(r,c).parentElement.classList.remove('error');
+    for(let r=0;r<9;r++){
+      for(let c=0;c<9;c++){
+        getCell(r,c).parentElement.classList.remove('error');
+      }
+    }
 
     let ok = true;
+
     for(let r=0;r<9;r++){
       for(let c=0;c<9;c++){
         const v = puzzle[r][c];
-        if(v === 0) { ok = false; continue; }
-        puzzle[r][c] = 0;
-        if(!Sudoku.isSafe(puzzle, r, c, v)){
+        if(v === 0){
+          ok = false;
+          continue;
+        }
+
+        const temp = Sudoku.cloneGrid(puzzle);
+        temp[r][c] = 0;
+
+        if(!Sudoku.isSafe(temp, r, c, v)){
           getCell(r,c).parentElement.classList.add('error');
           ok = false;
         }
-        puzzle[r][c] = v;
       }
     }
+
     statusEl.textContent = ok ? '今のところ矛盾はありません' : '矛盾があります（赤）';
   }
 
@@ -136,6 +159,17 @@ document.addEventListener('DOMContentLoaded', ()=>{
     statusEl.textContent = '';
   }
 
+  function checkComplete(){
+    if(!solution) return;
+
+    for(let r=0;r<9;r++){
+      for(let c=0;c<9;c++){
+        if(puzzle[r][c] !== solution[r][c]) return;
+      }
+    }
+    statusEl.textContent = '完成！おめでとうございます';
+  }
+
   buildBoard();
   newPuzzle();
 
@@ -143,16 +177,4 @@ document.addEventListener('DOMContentLoaded', ()=>{
   solveBtn.addEventListener('click', solvePuzzle);
   checkBtn.addEventListener('click', checkPuzzle);
   clearBtn.addEventListener('click', clearPuzzle);
-
-  boardEl.addEventListener('input', ()=>{
-    if(!solution) return;
-    let complete = true;
-    for(let r=0;r<9;r++){
-      for(let c=0;c<9;c++){
-        if(puzzle[r][c] === 0 || puzzle[r][c] !== solution[r][c]) { complete = false; break; }
-      }
-      if(!complete) break;
-    }
-    if(complete) statusEl.textContent = '完成！おめでとうございます';
-  });
 });
