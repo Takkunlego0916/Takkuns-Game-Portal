@@ -98,9 +98,14 @@ function maybeAIMove() {
 
 function undo() {
   if (!state.history.length || state.aiThinking) return;
-  const last = state.history.pop();
-  state.board = last.board;
-  state.turn = last.turn;
+
+  while (state.history.length) {
+    const last = state.history.pop();
+    state.board = last.board;
+    state.turn = last.turn;
+    if (state.turn === state.humanColor) break;
+  }
+
   draw();
 }
 
