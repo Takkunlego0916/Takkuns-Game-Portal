@@ -99,6 +99,7 @@ restartBtn.addEventListener('touchstart', resetGame);
 
 function startGame(){
   if (!isRunning){
+    resetState();
     isRunning = true;
     draw();
   }
@@ -107,11 +108,11 @@ function startGame(){
 function stopGame(){
   isRunning = false;
   if (animationId) cancelAnimationFrame(animationId);
+  animationId = null;
 }
 
 function resetGame(){
   stopGame();
-  resetState();
   startGame();
 }
 
@@ -127,10 +128,7 @@ function collisionDetection(){
           scoreEl.textContent = 'Score: ' + score;
 
           if(score === brickRowCount*brickColumnCount){
-            if(score === brickRowCount*brickColumnCount){
-              showGameOver("You Win!");
-            }
-            stopGame();
+            showGameOver("You Win!");
           }
         }
       }
@@ -183,6 +181,8 @@ function draw(){
   drawPaddle();
   collisionDetection();
 
+  if (!isRunning) return;
+
   if(x + dx > canvas.width-ballRadius || x + dx < ballRadius) dx = -dx;
   if(y + dy < ballRadius) dy = -dy;
   else if(y + dy > canvas.height-ballRadius){
@@ -190,8 +190,6 @@ function draw(){
       dy = -dy;
     } else {
       showGameOver("Game Over");
-      return;
-      stopGame();
       return;
     }
   }
