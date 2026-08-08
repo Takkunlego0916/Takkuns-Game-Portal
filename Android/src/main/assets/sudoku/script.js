@@ -160,13 +160,21 @@ document.addEventListener('DOMContentLoaded', ()=>{
   }
 
   function checkComplete(){
-    if(!solution) return;
+    for(let r=0;r<9;r++){
+      for(let c=0;c<9;c++){
+        if(puzzle[r][c] === 0) return;
+      }
+    }
 
     for(let r=0;r<9;r++){
       for(let c=0;c<9;c++){
-        if(puzzle[r][c] !== solution[r][c]) return;
+        const v = puzzle[r][c];
+        const temp = Sudoku.cloneGrid(puzzle);
+        temp[r][c] = 0;
+        if(!Sudoku.isSafe(temp, r, c, v)) return;
       }
     }
+
     statusEl.textContent = '完成！おめでとうございます';
   }
 
