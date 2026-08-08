@@ -132,6 +132,7 @@ html,body{
 .card[data-game="sudoku"] .game-title { color:#7c3aed; }
 .card[data-game="endlessrunner"] .game-title { color:#f59e0b; }
 .card[data-game="breakout"] .game-title { color:#2563eb; }
+.card[data-game="snake"] .game-title { color:#16a34a; }
 
 
 @media (max-width:900px){
