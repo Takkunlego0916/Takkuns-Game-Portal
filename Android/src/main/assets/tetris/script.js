@@ -9,6 +9,7 @@ nextContext.scale(20, 20);
 let score = 0;
 let nextPiece = null;
 let isGameOver = false;
+let rafId = null;
 
 function updateScore() {
   document.getElementById('score').innerText = 'Score: ' + score;
@@ -107,6 +108,8 @@ function merge(arena, player) {
 }
 
 function playerDrop() {
+  if (isGameOver) return;
+
   player.pos.y++;
 
   if (collide(arena, player)) {
@@ -120,6 +123,8 @@ function playerDrop() {
 }
 
 function playerHardDrop() {
+  if (isGameOver) return;
+
   while (!collide(arena, player)) {
     player.pos.y++;
   }
@@ -131,6 +136,8 @@ function playerHardDrop() {
 }
 
 function playerMove(dir) {
+  if (isGameOver) return;
+
   player.pos.x += dir;
   if (collide(arena, player)) {
     player.pos.x -= dir;
@@ -158,6 +165,8 @@ function playerReset() {
 }
 
 function playerRotate(dir) {
+  if (isGameOver) return;
+
   const pos = player.pos.x;
   let offset = 1;
 
@@ -194,6 +203,7 @@ function update(time = 0) {
   if (isGameOver) {
     draw();
     drawGameOver();
+    rafId = null;
     return;
   }
 
@@ -206,7 +216,7 @@ function update(time = 0) {
   }
 
   draw();
-  requestAnimationFrame(update);
+  rafId = requestAnimationFrame(update);
 }
 
 document.addEventListener('keydown', e => {
@@ -220,9 +230,16 @@ document.addEventListener('keydown', e => {
 });
 
 function restartGame() {
+  if (rafId !== null) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+
   arena.forEach(row => row.fill(0));
   score = 0;
   isGameOver = false;
+  lastTime = 0;
+  dropCounter = 0;
   playerReset();
   updateScore();
   update();
