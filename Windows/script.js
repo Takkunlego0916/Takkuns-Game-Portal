@@ -90,6 +90,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const USERS_KEY = 'gp_users';
   const CURRENT_KEY = 'gp_currentUser';
 
+  function generateSalt() {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  async function hashPassword(password, salt) {
+    const enc = new TextEncoder();
+    const data = enc.encode(salt + ':' + password);
+    const digest = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
   function loadUsers() {
     try {
       return JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
@@ -99,19 +112,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function saveUsers(users) {
     localStorage.setItem(USERS_KEY, JSON.stringify(users));
-  }
-
-  function seedTestUser() {
-    const users = loadUsers();
-    const testEmail = 'test@example.com';
-    const testPassword = 'password123';
-    if (!users.some(u => u.email === testEmail)) {
-      users.push({ name: 'テストユーザー', email: testEmail, password: testPassword, avatar: '', theme: null });
-      saveUsers(users);
-      console.log('テストユーザーを作成しました:', testEmail);
-    } else {
-      console.log('テストユーザーは既に存在します:', testEmail);
-    }
   }
 
   function setCurrentUser(user) {
@@ -194,7 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (toSignup) toSignup.addEventListener('click', showSignup);
   if (toLogin) toLogin.addEventListener('click', showLogin);
 
-  signupForm.addEventListener('submit', (e) => {
+  signupForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('signupName').value.trim();
     const email = document.getElementById('signupEmail').value.trim().toLowerCase();
@@ -220,7 +220,9 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const newUser = { name, email, password: pw, avatar: '', theme: null };
+    const salt = generateSalt();
+    const passwordHash = await hashPassword(pw, salt);
+    const newUser = { name, email, salt, passwordHash, avatar: '', theme: null };
     users.push(newUser);
     saveUsers(users);
     signupMsg.textContent = '登録しました。自動でログインします。';
@@ -230,7 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 800);
   });
 
-  loginForm.addEventListener('submit', (e) => {
+  loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.getElementById('loginEmail').value.trim().toLowerCase();
     const pw = document.getElementById('loginPassword').value;
@@ -239,8 +241,13 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     const users = loadUsers();
-    const found = users.find(u => u.email === email && u.password === pw);
+    const found = users.find(u => u.email === email);
     if (!found) {
+      loginMsg.textContent = 'メールまたはパスワードが正しくありません。';
+      return;
+    }
+    const attemptHash = await hashPassword(pw, found.salt);
+    if (attemptHash !== found.passwordHash) {
       loginMsg.textContent = 'メールまたはパスワードが正しくありません。';
       return;
     }
@@ -332,7 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (profileForm) {
-    profileForm.addEventListener('submit', (e) => {
+    profileForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       profileMsg.textContent = '';
       const name = profileName.value.trim();
@@ -373,11 +380,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const file = profileAvatarInput.files && profileAvatarInput.files[0];
-      const finalizeSave = (avatarDataUrl) => {
+      const finalizeSave = async (avatarDataUrl) => {
         if (avatarDataUrl !== undefined) users[idx].avatar = avatarDataUrl;
         users[idx].name = name;
         users[idx].email = email;
-        if (pw) users[idx].password = pw;
+        if (pw) {
+          const salt = generateSalt();
+          users[idx].salt = salt;
+          users[idx].passwordHash = await hashPassword(pw, salt);
+        }
         saveUsers(users);
         setCurrentUser({ name, email, avatar: users[idx].avatar || '', theme: users[idx].theme || null });
         profileMsg.textContent = '保存しました。';
@@ -390,7 +401,7 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.onload = () => finalizeSave(reader.result);
         reader.readAsDataURL(file);
       } else {
-        finalizeSave(undefined);
+        await finalizeSave(undefined);
       }
     });
   }
@@ -545,7 +556,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  seedTestUser();
   renderAuthState();
 
   if (authOverlay) authOverlay.style.display = 'none';
