@@ -8,9 +8,11 @@ const ovTitle = document.getElementById('ov-title');
 const ovMsg = document.getElementById('ov-msg');
 const retryBtn = document.getElementById('retry');
 
+const BEST_KEY = '2048_best_score';
+
 let grid = new Array(16).fill(0);
 let score = 0;
-let best = 0;
+let best = Number(localStorage.getItem(BEST_KEY) || 0);
 let gameOver = false;
 let gameClear = false;
 
@@ -60,7 +62,10 @@ function slide(row) {
       const merged = arr[i] * 2;
       result.push(merged);
       score += merged;
-      best = Math.max(best, score);
+      if (score > best) {
+        best = score;
+        localStorage.setItem(BEST_KEY, String(best));
+      }
       i++;
       mergedIndex.push(result.length - 1);
     } else {
